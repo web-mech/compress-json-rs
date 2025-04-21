@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+// Removed unused import of HashMap
 use serde_json::{Value, Map, Number};
 use crate::encode::{decode_bool, decode_key, decode_num, decode_str};
 use crate::memory::{make_memory, mem_to_values, add_value, Key};
@@ -58,20 +58,19 @@ pub fn decode(values: &Vec<String>, key: &str) -> Value {
     }
     let id = decode_key(key);
     let v_str = &values[id];
-    let prefix = &v_str[0..2];
-    match prefix {
-        "b|" => Value::Bool(decode_bool(v_str)),
-        "o|" => decode_object(values, v_str),
-        "n|" => {
-            let num = decode_num(v_str);
-            Value::Number(Number::from_f64(num).expect("Invalid number"))
-        }
-        "a|" => decode_array(values, v_str),
-        _ => {
-            // default to string
-            let s = decode_str(v_str);
-            Value::String(s)
-        }
+    // Determine value type by prefix and decode accordingly
+    if v_str.starts_with("b|") {
+        Value::Bool(decode_bool(v_str))
+    } else if v_str.starts_with("o|") {
+        decode_object(values, v_str)
+    } else if v_str.starts_with("n|") {
+        let num = decode_num(v_str);
+        Value::Number(Number::from_f64(num).expect("Invalid number"))
+    } else if v_str.starts_with("a|") {
+        decode_array(values, v_str)
+    } else {
+        // default to string
+        Value::String(decode_str(v_str))
     }
 }
 
