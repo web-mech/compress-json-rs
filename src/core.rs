@@ -64,6 +64,19 @@ pub fn decode(values: &Vec<String>, key: &str) -> Value {
     } else if v_str.starts_with("o|") {
         decode_object(values, v_str)
     } else if v_str.starts_with("n|") {
+        // Numeric: preserve integers when no decimal or exponent
+        let num_str = &v_str[2..];
+        if !num_str.contains('.') && !num_str.contains('e') && !num_str.contains('E') {
+            // try signed integer
+            if let Ok(i) = num_str.parse::<i64>() {
+                return Value::Number(Number::from(i));
+            }
+            // try unsigned integer
+            if let Ok(u) = num_str.parse::<u64>() {
+                return Value::Number(Number::from(u));
+            }
+        }
+        // fallback to float
         let num = decode_num(v_str);
         Value::Number(Number::from_f64(num).expect("Invalid number"))
     } else if v_str.starts_with("a|") {
