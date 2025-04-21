@@ -9,7 +9,7 @@ repository = "https://github.com/web-mech/compress-json-rs"
 homepage = "https://github.com/web-mech/compress-json-rs#readme"
 documentation = "https://docs.rs/compress-json-rs"
 keywords = ["json", "compress", "decompress", "serde"]
-categories = ["data-structures", "serialization"]
+categories = ["data-structures", "compression", "parser-implementations", "encoding"]
 
  [dependencies]
 serde = { version = "1.0", features = ["derive"] }
