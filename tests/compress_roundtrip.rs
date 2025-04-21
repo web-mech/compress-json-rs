@@ -29,6 +29,11 @@ fn compress_decompress_roundtrip_primitives() {
     let decompressed_str = decompress(compressed_str);
     assert_eq!(value_str, decompressed_str);
 
+    let value_num = json!(916);
+    let compressed_int = compress(&value_num);
+    let decompressed_int = decompress(compressed_int);
+    assert_eq!(value_num, decompressed_int);
+
     let value_num = json!(42.42);
     let compressed_num = compress(&value_num);
     let decompressed_num = decompress(compressed_num);
