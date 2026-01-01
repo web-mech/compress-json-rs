@@ -20,8 +20,8 @@ fn decode_object(values: &Vec<String>, s: &str) -> Value {
     }
     let parts: Vec<&str> = s.split('|').collect();
     let key_id = parts[1];
-    let mut keys_val = decode(values, key_id);
-    let mut keys: Vec<String> = match keys_val {
+    let keys_val = decode(values, key_id);
+    let keys: Vec<String> = match keys_val {
         Value::String(ref k) => vec![k.clone()],
         Value::Array(arr) => arr.into_iter().map(|v| match v {
             Value::String(s) => s,
