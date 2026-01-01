@@ -1,4 +1,5 @@
 /// Panic indicating an unsupported data type encountered
+#[allow(dead_code)]
 pub fn throw_unknown_data_type() -> ! {
     panic!("unsupported data type");
 }
