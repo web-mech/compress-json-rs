@@ -37,20 +37,23 @@ pub fn decode_bool(s: &str) -> bool {
 
 /// Encode a generic string, escaping reserved prefixes with 's|' if needed
 pub fn encode_str(s: &str) -> String {
-    if s.len() >= 2 {
-        let prefix = &s[0..2];
-        match prefix {
-            "b|" | "o|" | "n|" | "a|" | "s|" => return format!("s|{}", s),
-            _ => {}
-        }
+    // Check for reserved prefixes using starts_with (UTF-8 safe)
+    if s.starts_with("b|") 
+        || s.starts_with("o|") 
+        || s.starts_with("n|") 
+        || s.starts_with("a|") 
+        || s.starts_with("s|") 
+    {
+        return format!("s|{}", s);
     }
     s.to_string()
 }
 
 /// Decode a compressed string, unescaping 's|' prefix if present
 pub fn decode_str(s: &str) -> String {
-    if s.starts_with("s|") {
-        s[2..].to_string()
+    // Use strip_prefix for safe UTF-8 handling
+    if let Some(stripped) = s.strip_prefix("s|") {
+        stripped.to_string()
     } else {
         s.to_string()
     }
