@@ -127,6 +127,5 @@ pub fn add_value(mem: &mut Memory, o: &Value) -> Key {
             }
             get_value_key(mem, &acc)
         }
-        _ => panic!("unsupported data type"),
     }
 }
