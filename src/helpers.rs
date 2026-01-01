@@ -12,7 +12,7 @@ pub fn trim_undefined_recursively(object: &mut Map<String, Value>) {
         tracks.push(obj as *const _);
         let keys: Vec<String> = obj.keys().cloned().collect();
         for key in keys {
-            if let Some(mut v) = obj.remove(&key) {
+            if let Some(v) = obj.remove(&key) {
                 if v.is_null() {
                     // skip insertion
                 } else {
