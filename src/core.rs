@@ -1,12 +1,91 @@
-// Removed unused import of HashMap
+//! Core compression and decompression functions.
+//!
+//! This module provides the main entry points for compressing and decompressing JSON values.
+//!
+//! # Compression
+//!
+//! The [`compress`] function takes a `serde_json::Value` and produces a [`Compressed`] tuple
+//! containing the deduplicated value store and a root key.
+//!
+//! # Decompression
+//!
+//! The [`decompress`] function takes a [`Compressed`] tuple and reconstructs the original
+//! JSON value.
+//!
+//! # Format
+//!
+//! Values are encoded with type prefixes:
+//! - `b|T` / `b|F` - boolean true/false
+//! - `n|<num>` - numeric value
+//! - `s|<str>` - escaped string (for strings that look like encoded values)
+//! - `a|<refs>` - array with pipe-separated element references
+//! - `o|<schema>|<refs>` - object with schema reference and value references
+//! - Plain string - unescaped string value
+//! - Empty string or `_` - null value
+
 use serde_json::{Value, Map, Number};
 use crate::encode::{decode_bool, decode_key, decode_num, decode_str};
 use crate::memory::{make_memory, mem_to_values, add_value, Key};
 
-/// Compressed representation: (values array, root key)
+/// Compressed representation: (values array, root key).
+///
+/// The first element is a vector of encoded strings representing all unique values.
+/// The second element is a base-62 key pointing to the root value in the array.
+///
+/// # Example
+///
+/// ```rust
+/// use compress_json_rs::{compress, Compressed};
+/// use serde_json::json;
+///
+/// let data = json!({"name": "Alice"});
+/// let compressed: Compressed = compress(&data);
+///
+/// let (values, root) = compressed;
+/// assert!(!values.is_empty());
+/// assert!(!root.is_empty());
+/// ```
 pub type Compressed = (Vec<String>, Key);
 
-/// Compress a JSON object into its compressed representation
+/// Compress a JSON value into its compressed representation.
+///
+/// Takes any valid `serde_json::Value` and produces a compact, deduplicated
+/// representation that can be serialized for storage or transmission.
+///
+/// # Arguments
+///
+/// * `o` - A reference to the JSON value to compress
+///
+/// # Returns
+///
+/// A [`Compressed`] tuple containing:
+/// - `Vec<String>` - The deduplicated value store
+/// - `String` - The base-62 key of the root value
+///
+/// # Example
+///
+/// ```rust
+/// use compress_json_rs::compress;
+/// use serde_json::json;
+///
+/// let data = json!({
+///     "users": [
+///         { "id": 1, "name": "Alice" },
+///         { "id": 2, "name": "Bob" }
+///     ]
+/// });
+///
+/// let (values, root) = compress(&data);
+///
+/// // Values are deduplicated - the schema "id,name" appears once
+/// println!("Compressed to {} values", values.len());
+/// ```
+///
+/// # Handling Special Values
+///
+/// - `NaN` and `Infinity` are converted to `null` (configurable via `CONFIG`)
+/// - Unicode strings are fully supported
+/// - Strings that look like encoded values (e.g., "n|123") are automatically escaped
 pub fn compress(o: &Value) -> Compressed {
     let mut mem = make_memory();
     let root = add_value(&mut mem, o);
@@ -14,6 +93,7 @@ pub fn compress(o: &Value) -> Compressed {
     (values, root)
 }
 
+/// Decode an object from its encoded string representation.
 fn decode_object(values: &Vec<String>, s: &str) -> Value {
     if s == "o|" {
         return Value::Object(Map::new());
@@ -25,9 +105,9 @@ fn decode_object(values: &Vec<String>, s: &str) -> Value {
         Value::String(ref k) => vec![k.clone()],
         Value::Array(arr) => arr.into_iter().map(|v| match v {
             Value::String(s) => s,
-            other => panic!("Invalid key type in decode_object: {:?}", other),
+            other => panic!("Invalid key type in decode_object: {other:?}"),
         }).collect(),
-        other => panic!("Invalid keys in decode_object: {:?}", other),
+        other => panic!("Invalid keys in decode_object: {other:?}"),
     };
     let mut map = Map::new();
     for (i, part) in parts.iter().enumerate().skip(2) {
@@ -38,6 +118,7 @@ fn decode_object(values: &Vec<String>, s: &str) -> Value {
     Value::Object(map)
 }
 
+/// Decode an array from its encoded string representation.
 fn decode_array(values: &Vec<String>, s: &str) -> Value {
     if s == "a|" {
         return Value::Array(Vec::new());
@@ -51,7 +132,37 @@ fn decode_array(values: &Vec<String>, s: &str) -> Value {
     Value::Array(arr)
 }
 
-/// Decode a single key into a JSON Value
+/// Decode a single key into a JSON Value.
+///
+/// This is a lower-level function that decodes a single reference key
+/// from the values array. It's used internally by [`decompress`] but
+/// can also be used directly for custom decoding scenarios.
+///
+/// # Arguments
+///
+/// * `values` - The values array from a compressed representation
+/// * `key` - A base-62 encoded key string
+///
+/// # Returns
+///
+/// The decoded `serde_json::Value`
+///
+/// # Example
+///
+/// ```rust
+/// use compress_json_rs::{compress, decode};
+/// use serde_json::json;
+///
+/// let data = json!("hello");
+/// let (values, root) = compress(&data);
+///
+/// let decoded = decode(&values, &root);
+/// assert_eq!(decoded, json!("hello"));
+/// ```
+///
+/// # Panics
+///
+/// Panics if the key references an invalid index or the encoded value is malformed.
 pub fn decode(values: &Vec<String>, key: &str) -> Value {
     if key.is_empty() || key == "_" {
         return Value::Null;
@@ -63,9 +174,8 @@ pub fn decode(values: &Vec<String>, key: &str) -> Value {
         Value::Bool(decode_bool(v_str))
     } else if v_str.starts_with("o|") {
         decode_object(values, v_str)
-    } else if v_str.starts_with("n|") {
+    } else if let Some(num_str) = v_str.strip_prefix("n|") {
         // Numeric: preserve integers when no decimal or exponent
-        let num_str = &v_str[2..];
         if !num_str.contains('.') && !num_str.contains('e') && !num_str.contains('E') {
             // try signed integer
             if let Ok(i) = num_str.parse::<i64>() {
@@ -87,7 +197,42 @@ pub fn decode(values: &Vec<String>, key: &str) -> Value {
     }
 }
 
-/// Decompress a compressed representation back into JSON
+/// Decompress a compressed representation back into JSON.
+///
+/// Takes a [`Compressed`] tuple produced by [`compress`] and reconstructs
+/// the original JSON value.
+///
+/// # Arguments
+///
+/// * `c` - The compressed representation tuple
+///
+/// # Returns
+///
+/// The original `serde_json::Value`
+///
+/// # Example
+///
+/// ```rust
+/// use compress_json_rs::{compress, decompress};
+/// use serde_json::json;
+///
+/// let original = json!({
+///     "name": "Alice",
+///     "scores": [95, 87, 92]
+/// });
+///
+/// let compressed = compress(&original);
+/// let restored = decompress(compressed);
+///
+/// assert_eq!(original, restored);
+/// ```
+///
+/// # Round-trip Guarantee
+///
+/// For any valid JSON value, `decompress(compress(value))` will produce
+/// an equivalent value. The only exceptions are:
+/// - `NaN` and `Infinity` become `null`
+/// - Object key order may differ if `CONFIG.sort_key` was enabled
 pub fn decompress(c: Compressed) -> Value {
     let (values, root) = c;
     decode(&values, &root)
