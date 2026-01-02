@@ -1,5 +1,5 @@
-use serde_json::{json, Value};
 use compress_json_rs::{compress, decompress};
+use serde_json::{Value, json};
 
 #[test]
 fn compress_decompress_roundtrip_object() {
@@ -139,7 +139,10 @@ fn decompress_specific_case() {
 
             (values, key_id)
         }
-        _ => panic!("Parsed value is not a two-element array: {:?}", parsed_value),
+        _ => panic!(
+            "Parsed value is not a two-element array: {:?}",
+            parsed_value
+        ),
     };
 
     // 3. Decompress the value using the tuple
