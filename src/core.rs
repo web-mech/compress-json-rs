@@ -26,7 +26,9 @@
 //! - Plain string - unescaped string value
 //! - Empty string or `_` - null value
 
-use crate::encode::{decode_bool, decode_key, decode_num, decode_special, decode_str, is_special_value};
+use crate::encode::{
+    decode_bool, decode_key, decode_num, decode_special, decode_str, is_special_value,
+};
 use crate::memory::{Key, add_value, make_memory, mem_to_values};
 use serde_json::{Map, Number, Value};
 
