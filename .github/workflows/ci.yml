@@ -1,0 +1,188 @@
+# CI Workflow - Runs on Pull Requests
+# Performs checks, tests, and release dry-run preview
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ============================================
+  # Code Quality Checks
+  # ============================================
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Build
+        run: cargo build --verbose
+
+  # ============================================
+  # Test Suite
+  # ============================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: check
+    strategy:
+      matrix:
+        rust: [stable, beta, nightly]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust ${{ matrix.rust }}
+        uses: dtolnay/rust-action@${{ matrix.rust }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.rust }}-
+
+      - name: Run tests
+        run: cargo test --verbose
+
+      - name: Run doc tests
+        run: cargo test --doc --verbose
+
+  # ============================================
+  # Documentation Build
+  # ============================================
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Build documentation
+        run: cargo doc --no-deps --verbose
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # ============================================
+  # Release Dry Run (PR only)
+  # ============================================
+  release-dry-run:
+    name: Release Preview
+    runs-on: ubuntu-latest
+    needs: [test, docs]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for commit analysis
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Get current version
+        id: current
+        run: echo "version=$(./scripts/get-version.sh)" >> $GITHUB_OUTPUT
+
+      - name: Analyze commits for version bump
+        id: analyze
+        run: |
+          BUMP_TYPE=$(./scripts/analyze-commits.sh)
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          
+          # Calculate new version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.current.outputs.version }}"
+          case "$BUMP_TYPE" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish dry run
+        run: cargo publish --dry-run
+
+      - name: Release Preview Summary
+        run: |
+          echo "## 🚀 Release Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Current Version** | \`${{ steps.current.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Bump Type** | \`${{ steps.analyze.outputs.bump_type }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **New Version** | \`${{ steps.analyze.outputs.new_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tag** | \`v${{ steps.analyze.outputs.new_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📝 Changelog Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ./scripts/changelog.sh | head -50 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Publish dry-run passed** - Ready to merge!" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # Overall Status
+  # ============================================
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [check, test, docs]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.check.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.docs.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All CI checks passed!"
