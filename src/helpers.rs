@@ -21,7 +21,7 @@
 //! JavaScript version, where `undefined` and `null` have different semantics.
 //! In Rust/JSON, these functions operate on `null` values.
 
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
 
 /// Remove keys with null values from a JSON object (shallow).
 ///
