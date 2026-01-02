@@ -241,7 +241,7 @@
 //!
 //! Licensed under BSD-2-Clause. See [LICENSE](https://github.com/web-mech/compress-json-rs/blob/main/LICENSE).
 
-#![doc(html_root_url = "https://docs.rs/compress-json-rs/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/compress-json-rs/0.2.0")]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
