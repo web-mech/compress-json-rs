@@ -291,4 +291,4 @@ pub use helpers::{trim_undefined, trim_undefined_recursively};
 pub use memory::{Key, Memory, add_value, make_memory, mem_to_values};
 
 // Expose encoding functions for special values (v3.2.0+)
-pub use encode::{encode_num, decode_num, decode_special, is_special_value};
+pub use encode::{decode_num, decode_special, encode_num, is_special_value};
