@@ -22,11 +22,7 @@
 /// `"T"` for true, `"F"` for false
 #[allow(dead_code)]
 pub fn bool_to_s(b: bool) -> String {
-    if b {
-        "T".to_string()
-    } else {
-        "F".to_string()
-    }
+    if b { "T".to_string() } else { "F".to_string() }
 }
 
 /// Convert compressed string to boolean.
