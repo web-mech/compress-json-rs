@@ -58,9 +58,7 @@ pub fn s_to_int(s: &str) -> usize {
     let mut acc = 0;
     let mut pow = 1;
     for c in s.chars().rev() {
-        let idx = ITO_S
-            .find(c)
-            .expect("invalid character in s_to_int");
+        let idx = ITO_S.find(c).expect("invalid character in s_to_int");
         acc += idx * pow;
         pow *= N;
     }
