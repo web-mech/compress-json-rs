@@ -271,7 +271,7 @@ pub fn add_value(mem: &mut Memory, o: &Value) -> Key {
                     .or_else(|| n.as_u64().map(|u| u as f64))
                     .unwrap_or(0.0)
             });
-            
+
             // Handle NaN (v3.4.0 logic)
             if f.is_nan() {
                 if CONFIG.preserve_nan {
@@ -283,7 +283,7 @@ pub fn add_value(mem: &mut Memory, o: &Value) -> Key {
                 // Convert to null like JSON.stringify
                 return "".to_string();
             }
-            
+
             // Handle Infinity (v3.4.0 logic)
             if f.is_infinite() {
                 if CONFIG.preserve_infinite {
@@ -303,7 +303,7 @@ pub fn add_value(mem: &mut Memory, o: &Value) -> Key {
                 // Convert to null like JSON.stringify
                 return "".to_string();
             }
-            
+
             // Regular number
             get_value_key(mem, &encode_num(f))
         }
