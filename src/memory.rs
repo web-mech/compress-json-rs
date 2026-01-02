@@ -247,10 +247,16 @@ fn get_schema(mem: &mut Memory, keys: &[String]) -> String {
 /// assert_eq!(decoded["name"], "Alice");
 /// ```
 ///
-/// # Special Cases
+/// # Special Cases (v3.4.0+)
 ///
-/// - **NaN**: Returns empty key (null) unless `CONFIG.error_on_nan` is true
-/// - **Infinity**: Returns empty key (null) unless `CONFIG.error_on_infinite` is true
+/// Special value handling depends on configuration:
+///
+/// | Value | `preserve_*` = true | `preserve_*` = false, `error_*` = true | Both false |
+/// |-------|---------------------|----------------------------------------|------------|
+/// | NaN | Encoded as `N\|0` | Panic | Returns `""` (null) |
+/// | Infinity | Encoded as `N\|+` | Panic | Returns `""` (null) |
+/// | -Infinity | Encoded as `N\|-` | Panic | Returns `""` (null) |
+///
 /// - **Null in arrays**: Encoded as `_` to distinguish from empty references
 pub fn add_value(mem: &mut Memory, o: &Value) -> Key {
     match o {
@@ -265,18 +271,40 @@ pub fn add_value(mem: &mut Memory, o: &Value) -> Key {
                     .or_else(|| n.as_u64().map(|u| u as f64))
                     .unwrap_or(0.0)
             });
+            
+            // Handle NaN (v3.4.0 logic)
             if f.is_nan() {
+                if CONFIG.preserve_nan {
+                    return get_value_key(mem, "N|0");
+                }
                 if CONFIG.error_on_nan {
                     throw_unsupported_data("[number NaN]");
                 }
+                // Convert to null like JSON.stringify
                 return "".to_string();
             }
+            
+            // Handle Infinity (v3.4.0 logic)
             if f.is_infinite() {
-                if CONFIG.error_on_infinite {
-                    throw_unsupported_data("[number Infinity]");
+                if CONFIG.preserve_infinite {
+                    if f.is_sign_positive() {
+                        return get_value_key(mem, "N|+");
+                    } else {
+                        return get_value_key(mem, "N|-");
+                    }
                 }
+                if CONFIG.error_on_infinite {
+                    if f.is_sign_positive() {
+                        throw_unsupported_data("[number Infinity]");
+                    } else {
+                        throw_unsupported_data("[number -Infinity]");
+                    }
+                }
+                // Convert to null like JSON.stringify
                 return "".to_string();
             }
+            
+            // Regular number
             get_value_key(mem, &encode_num(f))
         }
         Value::String(s) => get_value_key(mem, &encode_str(s)),
