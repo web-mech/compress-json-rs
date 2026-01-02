@@ -9,7 +9,7 @@ fn test_number_roundtrip(x: f64) {
     let value = json!(x);
     let compressed = compress(&value);
     let decompressed = decompress(compressed);
-    
+
     // Compare as f64 values to handle JSON representation
     let result = decompressed.as_f64().expect("Expected a number");
     assert_eq!(x, result, "Number roundtrip failed for {}", x);
@@ -87,10 +87,13 @@ fn test_integer_preservation() {
     let value = json!(42);
     let compressed = compress(&value);
     let decompressed = decompress(compressed);
-    
+
     // Should be an integer, not a float
-    assert!(decompressed.is_i64() || decompressed.is_u64(), 
-            "Expected integer, got {:?}", decompressed);
+    assert!(
+        decompressed.is_i64() || decompressed.is_u64(),
+        "Expected integer, got {:?}",
+        decompressed
+    );
     assert_eq!(value, decompressed);
 }
 
@@ -144,7 +147,7 @@ fn test_all_numbers_comprehensive() {
         2e-13,
         1.0 / 12.0,
     ];
-    
+
     for x in numbers {
         test_number_roundtrip(x);
     }
