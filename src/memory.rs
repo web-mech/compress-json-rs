@@ -39,12 +39,12 @@
 //! assert_eq!(values.len(), 1);
 //! ```
 
-use std::collections::HashMap;
-use serde_json::Value;
 use crate::config::CONFIG;
 use crate::debug::throw_unsupported_data;
 use crate::encode::{encode_bool, encode_num, encode_str};
 use crate::number::int_to_s;
+use serde_json::Value;
+use std::collections::HashMap;
 
 /// Key type for compressed references.
 ///
