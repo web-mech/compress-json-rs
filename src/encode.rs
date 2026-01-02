@@ -130,11 +130,11 @@ pub fn decode_bool(s: &str) -> bool {
 /// ```
 pub fn encode_str(s: &str) -> String {
     // Check for reserved prefixes using starts_with (UTF-8 safe)
-    if s.starts_with("b|") 
-        || s.starts_with("o|") 
-        || s.starts_with("n|") 
-        || s.starts_with("a|") 
-        || s.starts_with("s|") 
+    if s.starts_with("b|")
+        || s.starts_with("o|")
+        || s.starts_with("n|")
+        || s.starts_with("a|")
+        || s.starts_with("s|")
     {
         return format!("s|{s}");
     }
