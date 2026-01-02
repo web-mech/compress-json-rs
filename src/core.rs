@@ -23,9 +23,9 @@
 //! - Plain string - unescaped string value
 //! - Empty string or `_` - null value
 
-use serde_json::{Value, Map, Number};
 use crate::encode::{decode_bool, decode_key, decode_num, decode_str};
-use crate::memory::{make_memory, mem_to_values, add_value, Key};
+use crate::memory::{Key, add_value, make_memory, mem_to_values};
+use serde_json::{Map, Number, Value};
 
 /// Compressed representation: (values array, root key).
 ///
@@ -103,10 +103,13 @@ fn decode_object(values: &Vec<String>, s: &str) -> Value {
     let keys_val = decode(values, key_id);
     let keys: Vec<String> = match keys_val {
         Value::String(ref k) => vec![k.clone()],
-        Value::Array(arr) => arr.into_iter().map(|v| match v {
-            Value::String(s) => s,
-            other => panic!("Invalid key type in decode_object: {other:?}"),
-        }).collect(),
+        Value::Array(arr) => arr
+            .into_iter()
+            .map(|v| match v {
+                Value::String(s) => s,
+                other => panic!("Invalid key type in decode_object: {other:?}"),
+            })
+            .collect(),
         other => panic!("Invalid keys in decode_object: {other:?}"),
     };
     let mut map = Map::new();
