@@ -17,13 +17,18 @@
 //! Values are encoded with type prefixes:
 //! - `b|T` / `b|F` - boolean true/false
 //! - `n|<num>` - numeric value
+//! - `N|+` - positive infinity (v3.2.0+)
+//! - `N|-` - negative infinity (v3.2.0+)
+//! - `N|0` - NaN (v3.2.0+)
 //! - `s|<str>` - escaped string (for strings that look like encoded values)
 //! - `a|<refs>` - array with pipe-separated element references
 //! - `o|<schema>|<refs>` - object with schema reference and value references
 //! - Plain string - unescaped string value
 //! - Empty string or `_` - null value
 
-use crate::encode::{decode_bool, decode_key, decode_num, decode_str};
+use crate::encode::{
+    decode_bool, decode_key, decode_num, decode_special, decode_str, is_special_value,
+};
 use crate::memory::{Key, add_value, make_memory, mem_to_values};
 use serde_json::{Map, Number, Value};
 
@@ -81,11 +86,18 @@ pub type Compressed = (Vec<String>, Key);
 /// println!("Compressed to {} values", values.len());
 /// ```
 ///
-/// # Handling Special Values
+/// # Handling Special Values (v3.2.0+)
 ///
-/// - `NaN` and `Infinity` are converted to `null` (configurable via `CONFIG`)
-/// - Unicode strings are fully supported
-/// - Strings that look like encoded values (e.g., "n|123") are automatically escaped
+/// Special floating-point values are now preserved:
+/// - `Infinity` is encoded as `N|+`
+/// - `-Infinity` is encoded as `N|-`
+/// - `NaN` is encoded as `N|0`
+///
+/// Note: When `CONFIG.error_on_nan` or `CONFIG.error_on_infinite` is true,
+/// these values will panic instead of being encoded.
+///
+/// Unicode strings are fully supported and strings that look like encoded
+/// values (e.g., "n|123") are automatically escaped.
 pub fn compress(o: &Value) -> Compressed {
     let mut mem = make_memory();
     let root = add_value(&mut mem, o);
@@ -177,6 +189,18 @@ pub fn decode(values: &Vec<String>, key: &str) -> Value {
         Value::Bool(decode_bool(v_str))
     } else if v_str.starts_with("o|") {
         decode_object(values, v_str)
+    } else if is_special_value(v_str) {
+        // Handle special values: N|+, N|-, N|0 (v3.2.0+)
+        // Note: serde_json doesn't support Infinity/NaN directly,
+        // so we return null for JSON compatibility
+        let num = decode_special(v_str);
+        if num.is_nan() || num.is_infinite() {
+            // For JSON output, these become null
+            // But the encoded form preserves the original value
+            Value::Null
+        } else {
+            Value::Number(Number::from_f64(num).expect("Invalid number"))
+        }
     } else if let Some(num_str) = v_str.strip_prefix("n|") {
         // Numeric: preserve integers when no decimal or exponent
         if !num_str.contains('.') && !num_str.contains('e') && !num_str.contains('E') {
@@ -234,8 +258,13 @@ pub fn decode(values: &Vec<String>, key: &str) -> Value {
 ///
 /// For any valid JSON value, `decompress(compress(value))` will produce
 /// an equivalent value. The only exceptions are:
-/// - `NaN` and `Infinity` become `null`
+/// - `NaN` and `Infinity` are encoded but become `null` in JSON output
+///   (JSON doesn't support these values natively)
 /// - Object key order may differ if `CONFIG.sort_key` was enabled
+///
+/// Note: The compressed form preserves `Infinity`, `-Infinity`, and `NaN`
+/// with special encodings (`N|+`, `N|-`, `N|0`) for cross-platform
+/// compatibility with JavaScript and Python implementations.
 pub fn decompress(c: Compressed) -> Value {
     let (values, root) = c;
     decode(&values, &root)

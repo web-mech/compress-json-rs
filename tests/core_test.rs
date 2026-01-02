@@ -213,9 +213,12 @@ fn test_array_with_multiple_null_elements() {
 
 #[test]
 fn test_invalid_numbers_become_null() {
-    // In JSON, NaN and Infinity are not valid, so they become null
-    // We can't directly represent NaN/Infinity in serde_json,
-    // but the library should handle these gracefully if encountered
+    // In JSON output, NaN and Infinity become null because JSON doesn't support them.
+    // However, the compressed form preserves them with special encodings:
+    // - Infinity -> N|+
+    // - -Infinity -> N|-
+    // - NaN -> N|0
+    // This test verifies basic null handling; see special_values_test.rs for v3.2.0 tests
     test_roundtrip(
         "array with nulls for invalid numbers",
         json!([null, null, null]),

@@ -101,6 +101,9 @@
 //! | `b\|T` | Boolean | `b\|T` | `true` |
 //! | `b\|F` | Boolean | `b\|F` | `false` |
 //! | `n\|` | Number | `n\|42.5` | `42.5` |
+//! | `N\|+` | Infinity | `N\|+` | `Infinity` |
+//! | `N\|-` | -Infinity | `N\|-` | `-Infinity` |
+//! | `N\|0` | NaN | `N\|0` | `NaN` |
 //! | `s\|` | Escaped string | `s\|n\|foo` | `"n\|foo"` |
 //! | `a\|` | Array | `a\|0\|1\|2` | `[val0, val1, val2]` |
 //! | `o\|` | Object | `o\|0\|1\|2` | `{schema0: val1, ...}` |
@@ -231,17 +234,41 @@
 //! | Mixed data | 50-70% of original |
 //! | Unique values only | ~100% (no benefit) |
 //!
+//! # Special Values (v3.4.0+)
+//!
+//! This crate supports special floating-point values for cross-platform compatibility.
+//! Handling depends on configuration options:
+//!
+//! | Config Option | Default | Effect |
+//! |---------------|---------|--------|
+//! | `preserve_nan` | `false` | When `true`, NaN encoded as `N\|0` |
+//! | `preserve_infinite` | `false` | When `true`, ±Infinity encoded as `N\|+`/`N\|-` |
+//! | `error_on_nan` | `false` | When `true` (and preserve=false), panic on NaN |
+//! | `error_on_infinite` | `false` | When `true` (and preserve=false), panic on Infinity |
+//!
+//! By default (preserve options = false), special values become `null` like `JSON.stringify`.
+//!
+//! When preserved, the encoding is:
+//! - `Infinity` → `N|+`
+//! - `-Infinity` → `N|-`
+//! - `NaN` → `N|0`
+//!
+//! Note: JSON doesn't natively support these values, so they become `null` when
+//! decompressed to `serde_json::Value`. The compressed representation preserves
+//! them for compatibility with JavaScript and Python implementations that have
+//! `preserve_*` enabled.
+//!
 //! # Compatibility
 //!
 //! This crate is a Rust port of the JavaScript [compress-json](https://github.com/beenotung/compress-json)
-//! library. Compressed data is compatible between implementations, allowing cross-platform
+//! library (v3.4.0+). Compressed data is compatible between implementations, allowing cross-platform
 //! data exchange.
 //!
 //! # License
 //!
 //! Licensed under BSD-2-Clause. See [LICENSE](https://github.com/web-mech/compress-json-rs/blob/main/LICENSE).
 
-#![doc(html_root_url = "https://docs.rs/compress-json-rs/0.2.0")]
+#![doc(html_root_url = "https://docs.rs/compress-json-rs/0.3.0")]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
@@ -262,3 +289,6 @@ pub use core::{Compressed, compress, decode, decompress};
 pub use config::{CONFIG, Config};
 pub use helpers::{trim_undefined, trim_undefined_recursively};
 pub use memory::{Key, Memory, add_value, make_memory, mem_to_values};
+
+// Expose encoding functions for special values (v3.2.0+)
+pub use encode::{decode_num, decode_special, encode_num, is_special_value};

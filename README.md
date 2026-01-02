@@ -14,6 +14,7 @@ Store JSON data in a space-efficient compressed form with lossless round-trip co
 - [Quick Start](#quick-start)
 - [Usage Examples](#usage-examples)
 - [API Reference](#api-reference)
+- [Special Values](#special-values)
 - [How It Works](#how-it-works)
 - [Architecture](#architecture)
 - [Compression Format](#compression-format)
@@ -25,12 +26,14 @@ Store JSON data in a space-efficient compressed form with lossless round-trip co
 ## Features
 
 - **Full JSON Support**: Objects, arrays, strings, numbers, booleans, and null
+- **Special Values Support**: Infinity, -Infinity, and NaN with dedicated encodings (v3.2.0+)
 - **Value Deduplication**: Repeated values stored once with reference keys
 - **Schema Deduplication**: Objects with identical keys share schemas
 - **Compact Encoding**: Numbers encoded in base-62 format
 - **Type Safety**: Zero-copy round-trip using `serde_json::Value`
 - **UTF-8 Safe**: Full Unicode support for strings
 - **No Dependencies on Disk/Network**: Fast in-memory compression
+- **Cross-Platform Compatible**: Data compatible with JavaScript and Python implementations
 
 ## Installation
 
@@ -261,6 +264,81 @@ pub struct Config {
 pub const CONFIG: Config;
 ```
 
+## Special Values
+
+*Updated in v3.4.0 with preserve options*
+
+The library supports special floating-point values that are not part of the JSON specification.
+
+### Default Behavior (v3.4.0+)
+
+By default, `preserve_nan` and `preserve_infinite` are `false`, so special values become `null` (like `JSON.stringify`):
+
+| Value | Default (`preserve_*` = false) | With `preserve_*` = true |
+|-------|--------------------------------|--------------------------|
+| `Infinity` | `null` | `N\|+` |
+| `-Infinity` | `null` | `N\|-` |
+| `NaN` | `null` | `N\|0` |
+
+### Config Options
+
+```rust
+use compress_json_rs::CONFIG;
+
+// Default configuration (v3.4.0+)
+// preserve_nan: false       - NaN becomes null
+// preserve_infinite: false  - Infinity becomes null  
+// error_on_nan: false       - Don't panic on NaN
+// error_on_infinite: false  - Don't panic on Infinity
+```
+
+### Decoding Special Values
+
+When receiving data from JavaScript/Python implementations that have `preserve_*` enabled:
+
+```rust
+use compress_json_rs::{decode_special, is_special_value};
+
+// Check if a value is special
+assert!(is_special_value("N|+"));
+assert!(is_special_value("N|-"));
+assert!(is_special_value("N|0"));
+
+// Decode special values back to f64
+let inf = decode_special("N|+");
+assert!(inf.is_infinite() && inf.is_sign_positive());
+
+let neg_inf = decode_special("N|-");
+assert!(neg_inf.is_infinite() && neg_inf.is_sign_negative());
+
+let nan = decode_special("N|0");
+assert!(nan.is_nan());
+```
+
+### JSON Compatibility Note
+
+Since JSON doesn't natively support `Infinity`, `-Infinity`, or `NaN`, these values become `null` when decompressed to `serde_json::Value`. However, when `preserve_*` options are enabled, the **compressed format preserves** the original special values, enabling:
+
+- Cross-platform data exchange with JavaScript and Python implementations
+- Lossless storage of special values in the compressed form
+- Re-encoding with preserved semantics
+
+### String Escaping
+
+Strings that look like special value encodings are automatically escaped:
+
+```rust
+use compress_json_rs::{compress, decompress};
+use serde_json::json;
+
+// String "N|+" is preserved as a string, not treated as Infinity
+let data = json!({ "value": "N|+" });
+let compressed = compress(&data);
+let restored = decompress(compressed);
+
+assert_eq!(restored["value"], "N|+");
+```
+
 ## How It Works
 
 The compression algorithm works by **deduplicating values** and **encoding references** using base-62 keys.
@@ -423,6 +501,9 @@ classDiagram
 | `b\|T` | Boolean true | `b\|T` | `true` |
 | `b\|F` | Boolean false | `b\|F` | `false` |
 | `n\|` | Number | `n\|42.5` | `42.5` |
+| `N\|+` | Infinity | `N\|+` | `Infinity` |
+| `N\|-` | -Infinity | `N\|-` | `-Infinity` |
+| `N\|0` | NaN | `N\|0` | `NaN` |
 | `s\|` | Escaped string | `s\|n\|123` | `"n\|123"` |
 | `a\|` | Array | `a\|0\|1\|2` | Array with refs 0,1,2 |
 | `o\|` | Object | `o\|0\|1\|2` | Object with schema ref |
@@ -515,15 +596,24 @@ The library uses a compile-time configuration:
 
 ```rust
 pub const CONFIG: Config = Config {
-    sort_key: false,        // Don't sort object keys
-    error_on_nan: false,    // Convert NaN to null
-    error_on_infinite: false, // Convert Infinity to null
+    sort_key: false,           // Don't sort object keys
+    preserve_nan: false,       // Convert NaN to null (like JSON.stringify)
+    error_on_nan: false,       // Don't panic on NaN (only when preserve_nan=false)
+    preserve_infinite: false,  // Convert Infinity to null (like JSON.stringify)
+    error_on_infinite: false,  // Don't panic on Infinity (only when preserve_infinite=false)
 };
 ```
 
-### Behavior Notes
+### Behavior Notes (v3.4.0+)
 
-- **NaN and Infinity**: By default, these invalid JSON numbers are silently converted to `null`
+- **NaN and Infinity handling** depends on config options:
+
+  | Value | `preserve_*` = true | `preserve_*` = false, `error_*` = true | Both false (default) |
+  |-------|---------------------|----------------------------------------|----------------------|
+  | NaN | Encoded as `N\|0` | Panic | Becomes `null` |
+  | Infinity | Encoded as `N\|+` | Panic | Becomes `null` |
+  | -Infinity | Encoded as `N\|-` | Panic | Becomes `null` |
+
 - **Key Order**: Object keys maintain insertion order unless `sort_key` is enabled
 - **Unicode**: Full UTF-8 support for all string values
 
@@ -619,6 +709,7 @@ cargo test
 
 The library includes comprehensive tests covering:
 - Number encoding edge cases
+- Special values (Infinity, -Infinity, NaN)
 - Unicode string handling  
 - Empty objects and arrays
 - Null value handling
@@ -631,7 +722,24 @@ Licensed under the BSD-2-Clause license. See [LICENSE](LICENSE) for details.
 
 ---
 
+## Compatibility
+
+This library is compatible with [compress-json](https://github.com/beenotung/compress-json) v3.4.0+:
+
+| Feature | JavaScript | Python | Rust |
+|---------|------------|--------|------|
+| Basic types | ✅ | ✅ | ✅ |
+| `preserve_nan` | ✅ v3.4.0+ | ✅ v3.4.0+ | ✅ |
+| `preserve_infinite` | ✅ v3.4.0+ | ✅ v3.4.0+ | ✅ |
+| `error_on_nan` | ✅ | ✅ | ✅ |
+| `error_on_infinite` | ✅ | ✅ | ✅ |
+| Schema dedup | ✅ | ✅ | ✅ |
+| Value dedup | ✅ | ✅ | ✅ |
+
+Data compressed with any implementation can be decompressed by any other.
+
 ## Related Projects
 
-- [compress-json](https://github.com/beenotung/compress-json) - Original TypeScript implementation
+- [compress-json](https://github.com/beenotung/compress-json) - Original TypeScript implementation (v3.4.0+)
+- [compress-json Python](https://github.com/beenotung/compress-json/tree/main/python) - Python implementation
 - [serde_json](https://github.com/serde-rs/json) - JSON serialization framework for Rust
