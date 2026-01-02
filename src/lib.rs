@@ -246,19 +246,19 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 
 // Module declarations
-mod number;
-mod encode;
 mod boolean;
 mod config;
-mod debug;
-mod memory;
-mod helpers;
 mod core;
+mod debug;
+mod encode;
+mod helpers;
+mod memory;
+mod number;
 
 // Re-export core functionality
-pub use core::{compress, decompress, Compressed, decode};
+pub use core::{Compressed, compress, decode, decompress};
 
 // Expose lower-level APIs
-pub use memory::{add_value, make_memory, mem_to_values, Key, Memory};
+pub use config::{CONFIG, Config};
 pub use helpers::{trim_undefined, trim_undefined_recursively};
-pub use config::{Config, CONFIG};
+pub use memory::{Key, Memory, add_value, make_memory, mem_to_values};
