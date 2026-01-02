@@ -1,23 +1,22 @@
 //! Test sample data generation
 //! Ported from compress-json/test/sample.ts
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Sample names for generating test data
 const SAMPLE_NAMES: &[&str] = &[
-    "Alice", "Bob", "Charlie", "Diana", "Eve", 
-    "Frank", "Grace", "Henry", "Ivy", "Jack",
+    "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry", "Ivy", "Jack",
 ];
 
 /// Generate sample test data matching the TypeScript version
 pub fn sample() -> Value {
     let long_str = "A very very long string, that is repeated";
     let long_num = 9876543210.123456_f64;
-    
+
     // Create sparse array (array with gaps)
     let mut sparse: Vec<Value> = vec![Value::Null; 11];
     sparse[10] = json!(1);
-    
+
     // Generate collection of user-like objects
     let collection: Vec<Value> = (0..10)
         .map(|i| {
@@ -30,7 +29,7 @@ pub fn sample() -> Value {
             })
         })
         .collect();
-    
+
     json!({
         "floating": [
             0.12371134020618557,
@@ -85,12 +84,12 @@ pub fn get_sample(name: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_sample_structure() {
         let data = sample();
         assert!(data.is_object());
-        
+
         // Check all expected keys exist
         let obj = data.as_object().unwrap();
         assert!(obj.contains_key("floating"));
@@ -101,7 +100,7 @@ mod tests {
         assert!(obj.contains_key("collection"));
         assert!(obj.contains_key("exponential"));
     }
-    
+
     #[test]
     fn test_sparse_array() {
         let sparse = get_sample("sparse");
@@ -110,7 +109,7 @@ mod tests {
         assert!(arr[0].is_null());
         assert_eq!(arr[10], json!(1));
     }
-    
+
     #[test]
     fn test_collection_size() {
         let collection = get_sample("collection");
